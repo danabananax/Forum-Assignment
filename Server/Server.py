@@ -10,7 +10,7 @@ def start(port):
     data = genData({})
     # create socket and listen for 1 connection at a time
     serverSocket = socket(AF_INET, SOCK_STREAM)
-    serverSocket.bind('localhost', port)
+    serverSocket.bind('', port)
     serverSocket.listen(1)
 
     print("Listening for client request...\n\n")
@@ -36,8 +36,9 @@ def genData(data):
 
 def connect(serverSocket, data):
     while True:
+        # form connection to client, sending welcome message
         conn, addr = serverSocket.accept()
-        print("Connected with server!\n\n")
+        conn.sendall(b"AUTH\r\nConnected to the server!\r\n")
 
         clientName = auth(conn, data)
 
