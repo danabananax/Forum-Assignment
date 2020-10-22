@@ -39,22 +39,42 @@ def connect(serverSocket, data):
         conn, addr = serverSocket.accept()
         print("Connected with server!\n\n")
 
-        clientName = auth(data)
+        clientName = auth(conn, data)
 
 
-def auth(data):
-    clientName = input("Please enter username: ")
-    try:
-        while clientName not in data:
-            clientName = input(
-                "Username does not exist, please type valid username: ")
+def recvText(conn):
+    response = conn.recv(1024).decode()
+    responseParse = response.split("\r\n\r\n")
+    message = responseParse[0]
+    return message
 
-        clientPass = input("Please enter the password for this account: ")
-        while(data[clientName] != clientPass):
-            clientPass = input("Incorrect password, please try again: ")
-    finally:
-        print("\nPassword correct.\n ")
-        return clientName
+
+def sendText(conn, msg):
+    message = msg + "/r/n/r/n"
+    message = message.encode()
+    conn.sendall(message)
+
+
+def auth(conn, data):
+    # First username promprt
+    sendText(conn, "Please enter username: ")
+    clientName = recvText(conn)
+
+    # Error handling for incorrect username
+    while clientName not in data:
+        sendText(conn, "Username does not exist, please type valid username:")
+        clientName = recvText(conn)
+
+    # Error handling for incorrect password
+    sendText(conn, "Please enter the password for this account: ")
+    clientPass = recvText(conn)
+    while(data[clientName] != clientPass):
+        sendText(conn, "Incorrect password, please try again: ")
+        clientPass = recvText(conn)
+
+    # Presented username matches password, client is authenticated
+    print("\nPassword correct.\n ")
+    return clientName
 
 
 # Take port as CL argument, if no port prompt user for number.
