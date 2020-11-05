@@ -1,5 +1,6 @@
 from socket import *
 import sys
+import json
 # TODO
 # Create data structure for forum
 # Create entry message to user and work on first few operations
@@ -43,35 +44,38 @@ def connect(serverSocket, data):
         clientName = auth(conn, data)
 
 
-def recvText(conn):
-    response = conn.recv(1024).decode()
-    responseParse = response.split("\r\n\r\n")
-    message = responseParse[0]
+def recvMsg(conn):
+    data = conn.recv(1024)
+    message = json.loads(data)
     return message
 
 
-def sendText(conn, msg):
-    message = msg + "/r/n/r/n"
-    message = message.encode()
-    conn.sendall(message)
+def sendMsg(conn, *message):
+    msgObj = {}
+    for word in message:
+        msgArgs.append(word)
+    messageObj = {'code': message[0], 'args': msgArgs}
+    data = json.dumps(message).encode()
+    conn.sendall(data)
 
 
 def auth(conn, data):
     # First username promprt
-    sendText(conn, "Please enter username: ")
-    clientName = recvText(conn)
+    sendMsg(conn, "AUTH", "PROMPT")
+    clientName = recvMsg(conn)
 
     # Error handling for incorrect username
-    while clientName not in data:
-        sendText(conn, "Username does not exist, please type valid username:")
-        clientName = recvText(conn)
+    while clientName[0] not in data:
+        sendMsg(conn, "AUTH", "FUSR")
+        clientName = recvMsg(conn)
 
+    # Existing username
+    sendMsg(conn, "AUTH", "USR")
+    clientPass = recvMsg(conn)
     # Error handling for incorrect password
-    sendText(conn, "Please enter the password for this account: ")
-    clientPass = recvText(conn)
     while(data[clientName] != clientPass):
-        sendText(conn, "Incorrect password, please try again: ")
-        clientPass = recvText(conn)
+        sendMsg(conn, "AUTH", "Incorrect password, please try again: ")
+        clientPass = recvMsg(conn)
 
     # Presented username matches password, client is authenticated
     print("\nPassword correct.\n ")

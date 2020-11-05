@@ -1,6 +1,6 @@
 #coding: utf-8
 from socket import *
-
+import json
 # Define connection (socket) parameters
 # Address + Port no
 # Server would be running on the same host as Client
@@ -17,7 +17,7 @@ def start():
         except IndexError:
             PORT = int(
                 input("Port number not recognized, please enter port number"))
-            break
+            continue
     # create the socket
     clientSocket = socket(AF_INET, SOCK_STREAM)
 
@@ -29,15 +29,43 @@ def start():
         except clientSocket.timeout:
             print("Connection timed out, trying again...")
 
+        # Error handling authentication
+        while True:
+            if(not clientAuth(clientSocket)):
+                print("Authentication not successful, trying again...\n")
+                continue
+            else:
+                break
 
-clientSocket.send(sentence)
-# As the connection has already been established, the client program simply drops the bytes in the string sentence into the TCP connection. Note the difference between UDP sendto() and TCP send() calls. In TCP we do not need to attach the destination address to the packet, as was the case with UDP sockets.
+ # WHERE WE LEFT OFF
 
-modifiedSentence = clientSocket.recv(1024)
-# We wait to receive the reply from the server, store it in modifiedSentence
 
-print 'From Server:', modifiedSentence
-# print what we have received
+def clientAuth(socket):
+    # receiving username prompt
+    response = recvText(socket)
 
-clientSocket.close()
-# and close the socket
+    if(usernamePrompt == "Please enter username: "):
+        # error handling for non-existant username
+        while True:
+            # send username after recieving prompt
+            userName = input(usernamePrompt)
+            sendText(socket, userName)
+
+            response = recvText(socket)
+            if(response == "Please enter the password for this account: "):
+                break
+            else:
+                print(f"Username ")
+
+
+def recvText(conn):
+    response = conn.recv(1024).decode()
+    responseParse = response.split("\r\n\r\n")
+    message = responseParse[0]
+    return message
+
+
+def sendText(conn, msg):
+    message = msg + "/r/n/r/n"
+    message = message.encode()
+    conn.sendall(message)
