@@ -43,29 +43,19 @@ def start():
 def clientAuth(socket):
     # receiving username prompt
     response = recvText(socket)
-
-    if(usernamePrompt == "Please enter username: "):
-        # error handling for non-existant username
-        while True:
-            # send username after recieving prompt
-            userName = input(usernamePrompt)
-            sendText(socket, userName)
-
-            response = recvText(socket)
-            if(response == "Please enter the password for this account: "):
-                break
-            else:
-                print(f"Username ")
+    while(response['code'] == "AUTH" and response['args'][1] != "FPASS"):
+        print(response['args'][1])
 
 
 def recvText(conn):
-    response = conn.recv(1024).decode()
-    responseParse = response.split("\r\n\r\n")
-    message = responseParse[0]
+    data = conn.recv(1024).decode()
+    message = json.loads(data)
     return message
 
 
-def sendText(conn, msg):
-    message = msg + "/r/n/r/n"
-    message = message.encode()
-    conn.sendall(message)
+def sendText(conn, message):
+
+    code = message.pop(0)
+    messageObj = {'code': code, 'args': message}
+    data = json.dumps(messageObj).encode()
+    conn.sendall(data)

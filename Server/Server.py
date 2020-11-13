@@ -39,42 +39,45 @@ def connect(serverSocket, data):
     while True:
         # form connection to client, sending welcome message
         conn, addr = serverSocket.accept()
-        conn.sendall(b"AUTH\r\nConnected to the server!\r\n")
+        print("Successfully connected to client, proceeding with authentication...\n\n)
 
         clientName = auth(conn, data)
 
 
 def recvMsg(conn):
-    data = conn.recv(1024)
+    data = conn.recv(1024).decode()
     message = json.loads(data)
     return message
 
 
-def sendMsg(conn, *message):
-    msgObj = {}
-    for word in message:
-        msgArgs.append(word)
-    messageObj = {'code': message[0], 'args': msgArgs}
-    data = json.dumps(message).encode()
+def sendMsg(conn, message):
+    code = message.pop(0)
+
+    messageObj = {'code': code, 'args': message}
+    data = json.dumps(messageObj).encode()
     conn.sendall(data)
 
 
 def auth(conn, data):
-    # First username promprt
-    sendMsg(conn, "AUTH", "PROMPT")
-    clientName = recvMsg(conn)
+    # First username prompt
+    sendMsg(conn, ["AUTH", "PROMPT", "Please enter username\n"])
+    response = recvMsg(conn)
+    clientName = response['args'][0]
 
     # Error handling for incorrect username
-    while clientName[0] not in data:
-        sendMsg(conn, "AUTH", "FUSR")
-        clientName = recvMsg(conn)
+    while clientName not in data:
+        sendMsg(conn, ["AUTH", "FUSR", "No matches for username\n"])
+        response = recvMsg(conn)
+        clientName = response['args'][0]
 
     # Existing username
-    sendMsg(conn, "AUTH", "USR")
-    clientPass = recvMsg(conn)
+    sendMsg(conn, ["AUTH", "USR", "Please type your password:\n"])
+    response = recvMsg(conn)
+    password = response['args'][0]
     # Error handling for incorrect password
-    while(data[clientName] != clientPass):
-        sendMsg(conn, "AUTH", "Incorrect password, please try again: ")
+    while(data[clientName] != passsword):
+        sendMsg(conn, ["AUTH", "FPASS",
+                       "Incorrect password, please try again:\n"])
         clientPass = recvMsg(conn)
 
     # Presented username matches password, client is authenticated
