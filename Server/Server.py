@@ -1,6 +1,7 @@
 from socket import *
 import sys
 import json
+import os
 # TODO
 # Create data structure for forum
 # Create entry message to user and work on first few operations
@@ -11,7 +12,7 @@ def start(port):
     data = getData()
     # create socket and listen for 1 connection at a time
     serverSocket = socket(AF_INET, SOCK_STREAM)
-    serverSocket.bind('', port)
+    serverSocket.bind(('', int(port)))
     serverSocket.listen(1)
 
     print("Listening for client request...\n\n")
@@ -23,7 +24,10 @@ def start(port):
 def getData():
     # parsing data fromd file into dictionary
     data = {}
-    with open('credentials.txt') as file:
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    credentials = os.path.join(dir_path, "credentials.txt")
+    with open(credentials) as file:
         for line in file:
             user = line.split(" ")
             userName = user[0]

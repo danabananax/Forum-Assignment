@@ -1,6 +1,8 @@
 #coding: utf-8
-from socket import *
+import socket
+from socket import AF_INET, SOCK_STREAM
 import json
+import sys
 # Define connection (socket) parameters
 # Address + Port no
 # Server would be running on the same host as Client
@@ -12,21 +14,21 @@ def start():
     # Take port as CL argument, if no port prompt user for number.
     while True:
         try:
-            PORT = sys.argv[1]
+            PORT = int(sys.argv[1])
             break
         except IndexError:
             PORT = int(
                 input("Port number not recognized, please enter port number"))
             continue
     # create the socket
-    clientSocket = socket(AF_INET, SOCK_STREAM)
+    clientSocket = socket.socket(AF_INET, SOCK_STREAM)
 
     # connect to server
     while True:
         try:
             # estalish TCP conmnection
             clientSocket.connect(('localhost', PORT))
-        except timeout():
+        except socket.timeout:
             print("Connection timed out, trying again...")
             continue
 
@@ -43,9 +45,12 @@ def start():
 
 def clientAuth(socket):
     # receiving username prompt
-    response = recvText(socket)
-    while(response['code'] == "AUTH" and response['args'][1] != "FPASS"):
-        print(response['args'][1])
+    while True:
+        response = recvText(socket)
+        if(response['code'] == "AUTH" and response['args'][0] == "PASS"):
+            break
+        message = input(response['args'][1])
+        sendText(socket, ["AUTH", message])
 
 
 def recvText(conn):
@@ -60,3 +65,6 @@ def sendText(conn, message):
     messageObj = {'code': code, 'args': message}
     data = json.dumps(messageObj).encode()
     conn.sendall(data)
+
+
+start()
