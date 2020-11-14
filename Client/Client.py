@@ -26,8 +26,9 @@ def start():
         try:
             # estalish TCP conmnection
             clientSocket.connect(('localhost', PORT))
-        except clientSocket.timeout:
+        except timeout():
             print("Connection timed out, trying again...")
+            continue
 
         # Error handling authentication
         while True:
