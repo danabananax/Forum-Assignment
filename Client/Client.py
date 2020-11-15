@@ -1,4 +1,4 @@
-#coding: utf-8
+# coding: utf-8
 import socket
 from socket import AF_INET, SOCK_STREAM
 import json
@@ -6,7 +6,6 @@ import sys
 # Define connection (socket) parameters
 # Address + Port no
 # Server would be running on the same host as Client
-serverName = 'localhost'
 
 
 def start():
@@ -15,10 +14,13 @@ def start():
     while True:
         try:
             PORT = int(sys.argv[1])
+            SERVER_IP = int(sys.argv[2])
             break
         except IndexError:
             PORT = int(
-                input("Port number not recognized, please enter port number"))
+                input("Please reenter port number:\n"))
+            SERVER_IP = int(input("Please reenter server IP:\n"))
+            print("\n\n")
             continue
     # create the socket
     clientSocket = socket.socket(AF_INET, SOCK_STREAM)
@@ -27,9 +29,10 @@ def start():
     while True:
         try:
             # estalish TCP conmnection
-            clientSocket.connect(('localhost', PORT))
-        except socket.timeout:
-            print("Connection timed out, trying again...")
+            clientSocket.connect((SERVER_IP, PORT))
+            print("Success! Establishing connection\n\n")
+        except socket.error as e:
+            print(f"{e}\n\n")
             continue
 
         # Error handling authentication

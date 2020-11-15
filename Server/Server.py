@@ -1,4 +1,5 @@
-from socket import *
+import socket
+from socket import AF_INET, SOCK_STREAM
 import sys
 import json
 import os
@@ -11,7 +12,7 @@ def start(port):
     # call function to retrieve data from file
     data = getData()
     # create socket and listen for 1 connection at a time
-    serverSocket = socket(AF_INET, SOCK_STREAM)
+    serverSocket = socket.socket(AF_INET, SOCK_STREAM)
     serverSocket.bind(('', int(port)))
     serverSocket.listen(1)
 
@@ -48,7 +49,57 @@ def connect(serverSocket, data):
                 "Successfully connected to client, proceeding with authentication...\n\n")
 
             clientName = auth(conn, data)
-        except timeout():
+            session(conn, clientName)
+        except socket.error as e:
+            print(f"{e}\n\nConnecting to new client...\n\n")
+            continue
+
+
+def session(conn, username):
+    # Sending welcome message and starting input loop for commands
+
+    # session input loop
+    while True:
+        message = ["AUTH", "START",
+                   "\nPlease enter one of the following commands:\n\nCRT, MSG, DLT, EDT, LST, RDT, UPD, DWN, RMV, XIT, SHT\n\n"]
+        sendMsg(conn, message)
+
+        response = recvMsg(conn)
+        code = response.pop(0)
+
+        if code == "CRT":
+            crt(conn, username, response)
+            continue
+        elif code == "DLT":
+            dlt(conn, username, response)
+            continue
+        elif code == "EDT":
+            edt(conn, username, response)
+            continue
+        elif code == "LST":
+            lst(conn, username, response)
+            continue
+        elif code == "RDT":
+            rdt(conn, username, response)
+            continue
+        elif code == "UPD":
+            upd(conn, username, response)
+            continue
+        elif code == "DWN":
+            dwn(conn, username, response)
+            continue
+        elif code == "RMV":
+            rmv(conn, username, response)
+            continue
+        elif code == "XIT":
+            xit(conn, username, response)
+            continue
+        elif code == "SHT":
+            sht(conn, username, response)
+            continue
+        else:
+            message = ["AUTH", "SESSION", "Please enter valid code\n\n"]
+            sendMsg(conn, message)
             continue
 
 
@@ -95,10 +146,35 @@ def auth(conn, data):
     return clientName
 
 
+def crt(conn, username, response):
+    # Setting up list of current files in cwd
+    cwd = os.getcwd()
+    files = [f for f in os.listdir(
+        cwd) if os.path.isfile(os.path.join(cwd, f))]
+    # checking through files list
+    threadtitle = response[0]
+    filename = f"{threadtitle}.txt"
+
+    if filename not in files:
+        message = f"forum \"{threadtitle}\" does not exist. Try again\n\n"
+        response = ["AUTH", "ERR", message]
+        sendMsg(conn, response)
+        return
+    else:
+        f = open(filename, "w+")
+        f.write(f"{username}\n")
+        f.close()
+
+        response = ["AUTH", "SUCCESS",
+                    f"Success! {threadtitle} has been created.\n\n"]
+        return
+
+
 # Take port as CL argument, if no port prompt user for number.
 while True:
     try:
         PORT = sys.argv[1]
+        adminPass = sys.argv[2]
         break
     except IndexError:
         PORT = int(input("Port number not recognized, please enter port number"))
