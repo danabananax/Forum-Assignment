@@ -3,6 +3,7 @@ import socket
 from socket import AF_INET, SOCK_STREAM
 import json
 import sys
+from time import sleep
 # Define connection (socket) parameters
 # Address + Port no
 # Server would be running on the same host as Client
@@ -14,14 +15,14 @@ def start():
     while True:
         try:
             PORT = int(sys.argv[1])
-            SERVER_IP = int(sys.argv[2])
+            SERVER_IP = (sys.argv[2])
             break
         except IndexError:
             PORT = int(
                 input("Please reenter port number:\n"))
-            SERVER_IP = int(input("Please reenter server IP:\n"))
+            SERVER_IP = (input("Please reenter server IP:\n"))
             print("\n\n")
-            continue
+            break
     # create the socket
     clientSocket = socket.socket(AF_INET, SOCK_STREAM)
 
@@ -43,6 +44,7 @@ def start():
             else:
                 break
 
+        session(clientSocket)
  # WHERE WE LEFT OFF
 
 
@@ -51,23 +53,43 @@ def clientAuth(socket):
     while True:
         response = recvText(socket)
         if(response['code'] == "AUTH" and response['args'][0] == "PASS"):
-            break
+            print(response['args'][1])
+            return True
         message = input(response['args'][1])
         sendText(socket, ["AUTH", message])
 
 
-def recvText(conn):
-    data = conn.recv(1024).decode()
+def recvText(socket):
+    data = socket.recv(1024).decode()
+    #print(f"decoded data: {data}\n\n")
     message = json.loads(data)
     return message
 
 
-def sendText(conn, message):
-
+def sendText(socket, message):
+    sleep(0.1)
     code = message.pop(0)
     messageObj = {'code': code, 'args': message}
     data = json.dumps(messageObj).encode()
-    conn.sendall(data)
+    socket.sendall(data)
+
+
+def session(socket):
+    # default loop for standard client session
+    while True:
+        # presenting message from server as prompt
+        response = recvText(socket)
+        # print(f"response is {response}")
+        # if subcode is start, client in session and needs input
+        if response['args'][0] == "START":
+            command = input(response['args'][1]).split(" ")
+            # parsing input into list to send
+            command[0] = command[0].upper()
+            sendText(socket, command)
+        # if client is not in session, just print message
+        else:
+            print(response['args'][1])
+        continue
 
 
 start()
