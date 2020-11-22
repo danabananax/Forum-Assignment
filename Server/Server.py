@@ -9,18 +9,18 @@ from time import sleep
 # finish and test msg()
 
 
-def start(port):
+def start(port, password):
     # call function to retrieve data from file
+    adminPass = password
     data = getData()
     # create socket and listen for 1 connection at a time
     serverSocket = socket.socket(AF_INET, SOCK_STREAM)
     serverSocket.bind(('', int(port)))
-    serverSocket.listen(1)
 
     print("Listening for client request...\n\n")
 
     # Enter connection loop that initiates client interaction
-    connect(serverSocket, data)
+    connect(serverSocket, data, adminPass)
 
 
 def getData():
@@ -39,23 +39,25 @@ def getData():
     return data
 
 
-def connect(serverSocket, data):
+def connect(serverSocket, data, password):
     while True:
         try:
             # form connection to client, sending welcome message
+            serverSocket.listen(1)
             conn, addr = serverSocket.accept()
             print(
                 "Successfully connected to client, proceeding with authentication...\n\n")
 
             clientName = auth(conn, data)
             print("Launching session...\n\n")
-            session(conn, clientName)
+            session(conn, clientName, password)
+            print("Connection has been closed")
         except socket.error as e:
             print(f"{e}\n\nConnecting to new client...\n\n")
             continue
 
 
-def session(conn, username):
+def session(conn, username, adminPass):
     # session input loop
     while True:
         message = ["AUTH", "START",
@@ -81,7 +83,7 @@ def session(conn, username):
             lst(conn)
             continue
         elif code == "RDT":
-            rdt(conn, username, arguments)
+            rdt(conn, arguments)
             continue
         elif code == "UPD":
             upd(conn, username, arguments)
@@ -93,15 +95,16 @@ def session(conn, username):
             rmv(conn, username, arguments)
             continue
         elif code == "XIT":
-            xit(conn, username, arguments)
-            continue
+            sendMsg(conn, ["XIT", "EXIT"])
+            break
         elif code == "SHT":
-            sht(conn, username, arguments)
+            sht(conn, arguments, adminPass)
             continue
         else:
             message = ["AUTH", "SESSION", "Please enter valid code\n\n"]
             sendMsg(conn, message)
             continue
+    return
 
 
 def auth(conn, data):
@@ -190,6 +193,9 @@ def dlt(conn, username, arguments):
             msgSplit = line.split(" ")
             msgNum = msgSplit[0]
             msgUsr = msgSplit[1]
+            if msgSplit[1] == "uploaded":
+                newLines.append(line)
+                continue
             # removing colon from username from file
             msgUsr = msgUsr[:-1]
             # skip message to delete from being written to new file
@@ -208,7 +214,8 @@ def dlt(conn, username, arguments):
         newMsgNum = 1
         for line in lines:
             # skipping author line #1
-            if " " not in line:
+            lineSplit = line.split()
+            if not lineSplit[0].isnumeric():
                 newLines.append(line)
                 continue
             # split and change msg number and write to new file
@@ -228,41 +235,6 @@ def dlt(conn, username, arguments):
     return
 
 
-def isAuthor(conn, username, lines, messageNumber):
-    for line in lines:
-        # skipping first author line
-        if " " not in line:
-            continue
-        # checking if user == author of message
-        msgSplit = line.split(" ")
-        currMsgNum = msgSplit[0]
-        currUsername = msgSplit[1]
-        currUsername = currUsername[:-1]
-        print(f"currUsername = {currUsername}, username = {username}\n")
-        if currMsgNum == messageNumber and currUsername != username:
-            message = [
-                "AUTH", "ERR", f"You are not the author of message number {messageNumber}. Try again\n"]
-            sendMsg(conn, message)
-            return False
-    print("User is author of message\n")
-    return True
-
-
-def validMsgNum(conn, lines, messageNumber):
-    try:
-        if int(messageNumber) < 1 or int(messageNumber) > len(lines) + 1:
-            message = "message number exceeds number of messages. Try again\n\n"
-            sendMsg(conn, ["AUTH", "ERR", message])
-            return False
-    # if msg number isnt numeric raise err
-    except ValueError:
-        message = "Input for message number is not numeric, please try again\n\n"
-        sendMsg(conn, ["AUTH", "ERR", message])
-        return False
-    print("Message number is valid\n")
-    return True
-
-
 def msg(conn, username, arguments):
     # parse arguments
     try:
@@ -280,8 +252,16 @@ def msg(conn, username, arguments):
     filename = f"{threadtitle}.txt"
     with open(filename, "r") as f:
         lines = f.readlines()
-    # msgNum is len(lines) because messages start on line 2
-    msgNum = len(lines)
+    # finding out last msg number
+    lastMsgNum = 0
+    if len(lines) > 1:
+        for line in lines:
+            lineSplit = line.split()
+            if " " not in line or not lineSplit[0].isnumeric():
+                continue
+            lastMsgNum = lineSplit[0]
+
+    msgNum = int(lastMsgNum) + 1
     with open(filename, "a") as f:
         f.write(f"{msgNum} {username}: {msgContent}\n")
 
@@ -348,7 +328,7 @@ def lst(conn):
     # get all files in current directory
     files = [f for f in os.listdir('.') if os.path.isfile(f)]
     # if no threads to display send err
-    if len(files) <= 1:
+    if len(files) <= 2:
         message = "There are no threads to display, create thread before trying again\n"
         sendMsg(conn, ["AUTH", "ERR", message])
         return
@@ -357,10 +337,180 @@ def lst(conn):
     for file in files:
         if file == "credentials.txt" or file[-2:] == 'py':
             continue
+        if file[-3:] != "txt":
+            continue
         threadList.append(file)
+
     lst_string = "\n".join(threadList)
     sendMsg(conn, ["LST", "SUCCESS", lst_string])
     return
+
+
+def rdt(conn, arguments):
+    # parse arguments
+    threadtitle = arguments[0]
+    if not checkThread(conn, threadtitle):
+        return
+    # create lines list
+    filename = f"{threadtitle}.txt"
+    print(f"{filename}\n")
+    with open(filename, "r") as f:
+        lines = f.readlines()
+    # send string of lines
+    threadContent = "\n\n"
+    for line in lines:
+        threadContent += line
+    sendMsg(conn, ["RDT", "SUCCESS", threadContent])
+    return
+
+
+def rmv(conn, username, arguments):
+    # parse arguments
+    threadtitle = arguments[0]
+    # check thread exists
+    if not checkThread(conn, threadtitle):
+        return
+    # check username is author of thread
+    filename = f"{threadtitle}.txt"
+    with open(filename, "r") as f:
+        firstLine = f.readline()
+    author = firstLine[:-1]  # removing \n from author name
+    if author != username:
+        message = f"Your username {username} does not match the author {author} of this file. Please try again\n"
+        sendMsg(conn, ["AUTH", "ERR", message])
+        return
+    # delete thread
+    os.remove(filename)
+    message = f"Success! {threadtitle} has been removed from the forum.\n"
+    sendMsg(conn, ["AUTH", "SUCCESS", message])
+    return
+
+
+def upd(conn, username, arguments):
+    # parse arguments
+    threadtitle = arguments[0]
+    filename = arguments[1]
+    # check thread
+    if not checkThread(conn, threadtitle):
+        return
+    # Confirmation of thread sent to client
+    sendMsg(conn, ["UPD", "RECV", filename])
+    # receive file
+    content = b''
+    conn.settimeout(3)
+    while True:
+        try:
+            print("Recieving...\n")
+            packet = conn.recv(1024)
+            if not packet:
+                break
+            content += packet
+        except socket.timeout:
+            break
+    with open(f"{threadtitle}-{filename}", "wb") as f:
+        f.write(content)
+    print("File successfully written")
+    conn.settimeout(60)
+
+    # put entry in respective thread
+    threadPath = f"{threadtitle}.txt"
+    with open(threadPath, "a") as f:
+        f.write(f"{username} uploaded {filename}\n")
+    # send msg
+    sendMsg(conn, ["AUTH", "SUCCESS",
+                   "File has been successfully uploaded.\n"])
+    return
+
+
+def dwn(conn, username, arguments):
+    # parse arguments
+    threadtitle = arguments[0]
+    filename = arguments[1]
+    # check thread
+    if not checkThread(conn, threadtitle):
+        return
+    # check fil
+    if not os.path.exists(f"{threadtitle}-{filename}"):
+        message = "File not found, please select correct file and try again\n"
+        sendMsg(conn, ["AUTH", "ERR", message])
+        return
+    # send file over
+    sendMsg(conn, ["DWN", "SEND", filename])
+    conn.settimeout(5)
+    try:
+        with open(f"{threadtitle}-{filename}", "rb") as f:
+            packet = f.read(1024)
+            while(packet):
+                print("Sending...\n")
+                conn.sendall(packet)
+                packet = f.read(1024)
+    except socket.timeout:
+        pass
+    conn.settimeout(60)
+    sleep(3)
+    print("Sending Complete\n")
+    sendMsg(conn, ["AUTH", "SUCCESS",
+                   "File Successfully downloaded from server"])
+    return
+
+
+def shutdown(conn):
+    files = [f for f in os.listdir('.') if os.path.isfile(f)]
+
+    for file in files:
+        if file != "credentials.txt" or file != "Server.py":
+            os.remove(file)
+
+    sendMsg(conn, ["SHT", "SHUTDOWN",
+                   "Shutdown command accepted, deleting all files and closing connection"])
+    sleep(3)
+    conn.shutdown()
+
+
+def xit(conn, arguments, password):
+    userPass = arguments[0]
+    # check for username in password
+    if not userPass == password:
+        message = "Admin password was incorrect, please try again\n"
+        sendMsg(conn, ["AUTH", "ERR", message])
+        return
+    shutdown(conn)
+    sys.exit(0)
+
+
+def isAuthor(conn, username, lines, messageNumber):
+    for line in lines:
+        # skipping first author line
+        if " " not in line:
+            continue
+        # checking if user == author of message
+        msgSplit = line.split(" ")
+        currMsgNum = msgSplit[0]
+        currUsername = msgSplit[1]
+        currUsername = currUsername[:-1]
+        print(f"currUsername = {currUsername}, username = {username}\n")
+        if currMsgNum == messageNumber and currUsername != username:
+            message = [
+                "AUTH", "ERR", f"You are not the author of message number {messageNumber}. Try again\n"]
+            sendMsg(conn, message)
+            return False
+    print("User is author of message\n")
+    return True
+
+
+def validMsgNum(conn, lines, messageNumber):
+    try:
+        if int(messageNumber) < 1 or int(messageNumber) > len(lines) + 1:
+            message = "message number exceeds number of messages. Try again\n\n"
+            sendMsg(conn, ["AUTH", "ERR", message])
+            return False
+    # if msg number isnt numeric raise err
+    except ValueError:
+        message = "Input for message number is not numeric, please try again\n\n"
+        sendMsg(conn, ["AUTH", "ERR", message])
+        return False
+    print("Message number is valid\n")
+    return True
 
 
 def recvMsg(conn):
@@ -393,10 +543,7 @@ while True:
     try:
         PORT = sys.argv[1]
         adminPass = sys.argv[2]
-        break
+        start(PORT, password)
+        continue
     except IndexError:
         PORT = int(input("Port number not recognized, please enter port number"))
-        break
-
-
-start(PORT)
