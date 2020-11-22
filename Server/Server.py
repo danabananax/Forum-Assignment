@@ -33,7 +33,7 @@ def getData():
         for line in file:
             user = line.split(" ")
             userName = user[0]
-            userPass = user[1]
+            userPass = user[1].rstrip()
             data[userName] = userPass
     # return dictionary containing credential data
     return data
@@ -124,7 +124,7 @@ def auth(conn, data):
     sendMsg(conn, ["AUTH", "USR", "Please type your password:\n"])
     response = recvMsg(conn)
     password = response['args'][0]
-    # Error handling for incorrect password
+
     while(data[clientName] != password):
         sendMsg(conn, ["AUTH", "FPASS",
                        "Incorrect password, please try again:\n"])
@@ -140,7 +140,6 @@ def auth(conn, data):
 
 def crt(conn, username, response):
     # Setting up list of current files in cwd
-    print(f"name of file to be created {response}\n")
     # checking through files list
     try:
         threadtitle = response[0]
@@ -168,8 +167,14 @@ def crt(conn, username, response):
 
 
 def dlt(conn, username, arguments):
-    threadtitle = arguments[0]
-    messageNumber = arguments[1]
+    try:
+        threadtitle = arguments[0]
+        messageNumber = arguments[1]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     # checking if threadtitle exists
     if not checkThread(conn, threadtitle):
         return
@@ -306,7 +311,6 @@ def edt(conn, username, arguments):
                 newLines.append(line)
                 continue
             msgSplit = line.split(" ")
-            print(f"msg split up is {msgSplit}\n")
             currMsgNum = msgSplit[0]
             currUsername = msgSplit[1]
             currUsername = currUsername[:-1]
@@ -340,7 +344,10 @@ def lst(conn):
         if file[-3:] != "txt":
             continue
         threadList.append(file)
-
+    if threadList == []:
+        message = "There are no threads to display, create thread before trying again\n"
+        sendMsg(conn, ["AUTH", "ERR", message])
+        return
     lst_string = "\n".join(threadList)
     sendMsg(conn, ["LST", "SUCCESS", lst_string])
     return
@@ -348,12 +355,17 @@ def lst(conn):
 
 def rdt(conn, arguments):
     # parse arguments
-    threadtitle = arguments[0]
+    try:
+        threadtitle = arguments[0]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     if not checkThread(conn, threadtitle):
         return
     # create lines list
     filename = f"{threadtitle}.txt"
-    print(f"{filename}\n")
     with open(filename, "r") as f:
         lines = f.readlines()
     # send string of lines
@@ -366,7 +378,13 @@ def rdt(conn, arguments):
 
 def rmv(conn, username, arguments):
     # parse arguments
-    threadtitle = arguments[0]
+    try:
+        threadtitle = arguments[0]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     # check thread exists
     if not checkThread(conn, threadtitle):
         return
@@ -381,15 +399,28 @@ def rmv(conn, username, arguments):
         return
     # delete thread
     os.remove(filename)
+
+    # delete files associated with thread
+    files = [f for f in os.listdir('.') if os.path.isfile(f)]
+    for file in files:
+        if threadtitle in file:
+            fileSplit = file.split("-")
+            if fileSplit[0] == threadtitle:
+                os.remove(file)
     message = f"Success! {threadtitle} has been removed from the forum.\n"
     sendMsg(conn, ["AUTH", "SUCCESS", message])
-    return
 
 
 def upd(conn, username, arguments):
     # parse arguments
-    threadtitle = arguments[0]
-    filename = arguments[1]
+    try:
+        threadtitle = arguments[0]
+        filename = arguments[1]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     # check thread
     if not checkThread(conn, threadtitle):
         return
@@ -424,8 +455,14 @@ def upd(conn, username, arguments):
 
 def dwn(conn, username, arguments):
     # parse arguments
-    threadtitle = arguments[0]
-    filename = arguments[1]
+    try:
+        threadtitle = arguments[0]
+        filename = arguments[1]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     # check thread
     if not checkThread(conn, threadtitle):
         return
@@ -454,21 +491,33 @@ def dwn(conn, username, arguments):
     return
 
 
-def shutdown(conn):
+def delFiles():
     files = [f for f in os.listdir('.') if os.path.isfile(f)]
 
     for file in files:
-        if file != "credentials.txt" or file != "Server.py":
-            os.remove(file)
+        if file == "credentials.txt" or file == "Server.py":
+            continue
+        os.remove(file)
+
+
+def shutdown(conn):
+    delFiles()
 
     sendMsg(conn, ["SHT", "SHUTDOWN",
-                   "Shutdown command accepted, deleting all files and closing connection"])
+                   "\n\nShutdown command accepted.\n deleting all created threads, files and closing connection...\n\n"])
+    print("\n\nShutting down server...\n")
     sleep(3)
-    conn.shutdown()
+    conn.shutdown(socket.SHUT_RDWR)
 
 
-def xit(conn, arguments, password):
-    userPass = arguments[0]
+def sht(conn, arguments, password):
+    try:
+        userPass = arguments[0]
+    except IndexError:
+        errorMsg = "Number of arguments does not match number of needed arguments, try again\n"
+        sendMsg(conn, [
+                "AUTH", "ERR", errorMsg])
+        return
     # check for username in password
     if not userPass == password:
         message = "Admin password was incorrect, please try again\n"
@@ -488,13 +537,11 @@ def isAuthor(conn, username, lines, messageNumber):
         currMsgNum = msgSplit[0]
         currUsername = msgSplit[1]
         currUsername = currUsername[:-1]
-        print(f"currUsername = {currUsername}, username = {username}\n")
         if currMsgNum == messageNumber and currUsername != username:
             message = [
                 "AUTH", "ERR", f"You are not the author of message number {messageNumber}. Try again\n"]
             sendMsg(conn, message)
             return False
-    print("User is author of message\n")
     return True
 
 
@@ -539,11 +586,13 @@ def checkThread(conn, threadtitle):
 
 
 # Take port as CL argument, if no port prompt user for number.
+delFiles()
 while True:
     try:
         PORT = sys.argv[1]
         adminPass = sys.argv[2]
-        start(PORT, password)
+        start(PORT, adminPass)
         continue
-    except IndexError:
-        PORT = int(input("Port number not recognized, please enter port number"))
+    except socket.error as e:
+        print(f"{e}\n\n")
+        break

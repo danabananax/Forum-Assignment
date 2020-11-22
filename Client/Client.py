@@ -32,10 +32,9 @@ def start():
             # estalish TCP conmnection
             clientSocket.connect((SERVER_IP, PORT))
             print("Success! Establishing connection\n\n")
-        except socket.error as e:
-            print(f"{e}\n\n")
-            continue
-
+        except socket.timeout as e:
+            print(f"\n{e}\n")
+            break
         # Error handling authentication
         while True:
             if(not clientAuth(clientSocket)):
@@ -61,7 +60,7 @@ def clientAuth(socket):
 
 def recvText(socket):
     data = socket.recv(1024).decode()
-    #print(f"decoded data: {data}\n\n")
+    # print(f"decoded data: {data}\n\n")
     message = json.loads(data)
     return message
 
@@ -74,33 +73,38 @@ def sendText(socket, message):
     socket.sendall(data)
 
 
-def session(socket):
+def session(sock):
     # default loop for standard client session
     while True:
         # presenting message from server as prompt
-        response = recvText(socket)
+        response = recvText(sock)
         # print(f"response is {response}")
         # if subcode is start, client in session and needs input
         if response['args'][0] == "START":
             command = input(response['args'][1]).split(" ")
             # parsing input into list to send
             command[0] = command[0].upper()
-            sendText(socket, command)
+            sendText(sock, command)
         # if client is not in session, just print message
         elif response['code'] == "XIT":
             break
+        elif response['code'] == "SHT":
+            print(response['args'][1])
+            sleep(3)
+            sock.shutdown(socket.SHUT_RDWR)
+            sys.exit(0)
         elif response['code'] == "UPD" and response['args'][0] == "RECV":
-            upd(socket, response['args'][1])
+            upd(sock, response['args'][1])
         elif response['code'] == 'DWN' and response['args'][0] == "SEND":
             filename = response['args'][1]
-            dwn(socket, filename)
+            dwn(sock, filename)
         else:
             print(response['args'][1])
         continue
 
     print("\n\nThank you for visiting the forum!\n\n")
     sleep(3)
-    socket.close()
+    sock.close()
     return
 
 
@@ -136,4 +140,7 @@ def dwn(conn, filename):
     return
 
 
-start()
+try:
+    start()
+except socket.error as e:
+    print(f"{e}\n\n")
